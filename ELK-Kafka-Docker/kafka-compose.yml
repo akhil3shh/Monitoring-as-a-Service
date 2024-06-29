@@ -1,0 +1,65 @@
+---
+version: '3.3'
+services:
+  zookeeper:
+    container_name: zookeeper-cntr
+    image: confluentinc/cp-zookeeper:7.2.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    restart: always
+    networks:
+      - kafka-nw
+    healthcheck:
+      test: echo stat | nc zookeeper-cntr 2181
+      interval: 10s
+      timeout: 10s
+      retries: 3
+
+  kafka:
+    container_name: kafka-cntr
+    image: confluentinc/cp-kafka:7.2.0
+    depends_on:
+      - zookeeper
+    ports:
+      - 29092:29092
+    restart: always
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper-cntr:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-cntr:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_ADVERTISED_HOST_NAME: localhost
+    networks:
+      - kafka-nw
+    healthcheck:
+      test: nc -vz kafka-cntr 9092 || exit -1
+      # start_period: 15s
+      interval: 5s
+      timeout: 10s
+      retries: 10
+  
+  init-kafka:
+    image: confluentinc/cp-kafka:7.2.0
+    depends_on:
+      - kafka
+    entrypoint: [ '/bin/sh', '-c' ]
+    networks:
+      - kafka-nw
+    command: |
+      "
+      # blocks until kafka is reachable
+      kafka-topics --bootstrap-server kafka-cntr:9092 --list
+
+      echo -e 'Creating kafka topics'      
+      kafka-topics --bootstrap-server kafka-cntr:9092 --create --if-not-exists --topic codespotify-topic --replication-factor 1 --partitions 1
+
+      echo -e 'Successfully created the following topics:'
+      kafka-topics --bootstrap-server kafka-cntr:9092 --list
+      "  
+
+networks:
+  kafka-nw:
+    driver: bridge

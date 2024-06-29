@@ -1,0 +1,12 @@
+filebeat.inputs:
+- type: docker
+  containers.ids:
+    - "108e0a0eabc0"
+  processors:
+    - add_docker_metadata: ~
+  scan_frequency: 10s
+
+output.elasticsearch:
+  hosts: ["elasticsearch-cntr:9200"]
+  username: "<user>"
+  password: "<pass>"
